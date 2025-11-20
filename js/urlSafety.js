@@ -274,7 +274,56 @@ const urlSafety = {
             }
 
             if (ec.typosquatting && ec.typosquatting.is_typosquatting) {
+                 let typoDetails = \`Similar to \${ec.typosquatting.target_brand}\`;
+                 if (ec.typosquatting.similarity) typoDetails += \` (\${(ec.typosquatting.similarity * 100).toFixed(0)}%)\`;
+                 if (ec.typosquatting.has_unicode_chars) typoDetails += ' • Unicode chars';
+                 if (ec.typosquatting.has_brand_in_subdomain) typoDetails += ' • Brand in subdomain';
+                 
+                 checksHtml += checkRow('Typosquatting', typoDetails, true, null);
+            } else if (ec.typosquatting && !ec.typosquatting.suspicious) {
+                 // Optional: Show clean typosquatting check if desired, or skip to save space. 
+                 // The React example shows "No typosquatting detected" in green.
+                 // checksHtml += checkRow('Typosquatting', 'None detected', false, null);
             }
+
+            // URL Features
+            if (ec.enhanced_features) {
+                const ef = ec.enhanced_features;
+                if (ef.is_url_shortened) checksHtml += checkRow('URL Shortener', 'Detected', true, null);
+                if (ef.has_ip_address) checksHtml += checkRow('Host Type', 'IP Address', true, null);
+                if (ef.has_at_symbol) checksHtml += checkRow('Obfuscation', '@ Symbol Detected', true, null);
+                if (ef.subdomain_count > 2) checksHtml += checkRow('Subdomains', \`\${ef.subdomain_count} detected\`, true, null);
+                checksHtml += checkRow('Entropy', (ef.domain_entropy || 0).toFixed(2), false, null);
+            }
+            
+            // Reputation Details
+            // Google Safe Browsing
+            if (result.safe_browsing) {
+                const sb = result.safe_browsing;
+                const isSbUnsafe = !sb.safe && sb.threats && sb.threats.length > 0;
+                const sbValue = isSbUnsafe ? \`🚫 \${sb.threats.map(t => t.threatType).join(", ")}\` : 'Clean';
+                checksHtml += checkRow('Google Safe Browsing', sbValue, isSbUnsafe, null);
+            }
+
+            if (ec.reputation) {
+                const rep = ec.reputation;
+                if (rep.phishtank) checksHtml += checkRow('PhishTank', rep.phishtank.in_database ? 'Listed' : 'Clean', rep.phishtank.in_database, null);
+                if (rep.urlhaus) checksHtml += checkRow('URLhaus', rep.urlhaus.in_database ? 'Listed' : 'Clean', rep.urlhaus.in_database, null);
+                if (rep.virustotal) {
+                     const vtValue = rep.virustotal.detection_ratio || rep.virustotal; // Handle string or object if structure varies
+                     const isVtSuspicious = typeof vtValue === 'string' && parseInt(vtValue.split('/')[0]) > 0;
+                     checksHtml += checkRow('VirusTotal', vtValue, isVtSuspicious, null);
+                }
+            }
+            
+            // Reputation Alert (Top Level)
+            let repHtml = '';
+            if (ec.reputation && ec.reputation.flagged_by_services && ec.reputation.flagged_by_services.length > 0) {
+                repHtml = \`<div style="background: #fee2e2; color: #991b1b; padding: 8px; border-radius: 6px; font-size: 12px; font-weight: bold; margin-bottom: 8px;">
+                    ⚠️ FLAGGED BY: \${ec.reputation.flagged_by_services.join(', ')}
+                </div>\`;
+            }
+
 
             const notif = document.createElement('div');
             notif.id = 'safety-notification';
