@@ -1,6 +1,6 @@
 
 
-const API_BASE_URL = 'http://localhost:8000/api' // Placeholder
+const API_BASE_URL = 'http://192.168.2.235:8000/api' // Placeholder
 // Cache key prefix
 const CACHE_PREFIX = 'url_safety_cache_';
 
@@ -44,6 +44,8 @@ const urlSafety = {
         const cachedResults = [];
         const urlsToFetch = [];
 
+        console.log('Batch checking', uniqueUrls.length, 'unique URLs');
+
         // Check cache first
         uniqueUrls.forEach(url => {
             const cached = localStorage.getItem(CACHE_PREFIX + url);
@@ -58,6 +60,8 @@ const urlSafety = {
             console.log('All batch URLs found in cache.');
             return cachedResults;
         }
+
+        console.log('Fetching', urlsToFetch.length, 'URLs from API');
 
         const chunks = [];
         for (let i = 0; i < urlsToFetch.length; i += BATCH_SIZE) {
@@ -80,8 +84,14 @@ const urlSafety = {
                     }
                     const data = await response.json();
 
+                    // The API returns {results: [...], total_checked: N, ...}
+                    // Extract the results array
+                    const results = data.results || data;
+
+                    console.log('Batch API returned', results.length, 'results');
+
                     // Cache new results
-                    data.forEach(result => {
+                    results.forEach(result => {
                         if (result && result.url) {
                             try {
                                 localStorage.setItem(CACHE_PREFIX + result.url, JSON.stringify(result));
@@ -91,7 +101,7 @@ const urlSafety = {
                         }
                     });
 
-                    return data;
+                    return results;
                 } catch (e) {
                     console.error('Error in batch chunk:', e);
                     return [];
@@ -99,7 +109,9 @@ const urlSafety = {
             }));
 
             // Combine cached and fresh results
-            return [...cachedResults, ...apiResults.flat()];
+            const allResults = [...cachedResults, ...apiResults.flat()];
+            console.log('Total batch check results:', allResults.length);
+            return allResults;
         } catch (error) {
             console.error('Error batch checking URLs:', error);
             return cachedResults; // Return whatever we have from cache
@@ -410,28 +422,63 @@ const urlSafety = {
         // Filter for unsafe URLs
         const unsafeUrls = results.filter(r => r.final_verdict === 'unsafe' || r.final_verdict === 'suspicious');
 
+        console.log('highlightRiskyUrls called with', results.length, 'results,', unsafeUrls.length, 'unsafe/suspicious');
+
         if (unsafeUrls.length === 0) return;
 
         const script = `
       (function() {
         const unsafeData = ${JSON.stringify(unsafeUrls)};
         const urlMap = {};
+        
+        // Normalize URL by removing trailing slash and converting to lowercase
+        const normalizeUrl = (url) => {
+            try {
+                let normalized = url.trim().toLowerCase();
+                if (normalized.endsWith('/')) {
+                    normalized = normalized.slice(0, -1);
+                }
+                return normalized;
+            } catch (e) {
+                return url;
+            }
+        };
+        
+        // Build map with both original and normalized URLs
         unsafeData.forEach(item => {
             urlMap[item.url] = item;
+            urlMap[normalizeUrl(item.url)] = item;
         });
 
-        const links = document.querySelectorAll('a');
+        console.log('URL Safety: Found', unsafeData.length, 'unsafe URLs to highlight');
+        console.log('URL Safety: URL Map keys:', Object.keys(urlMap));
+
+        const links = document.querySelectorAll('a[href]');
+        console.log('URL Safety: Found', links.length, 'links on page');
+        
+        let highlightedCount = 0;
+        
         links.forEach(link => {
-          if (urlMap[link.href]) {
-            const data = urlMap[link.href];
+          const href = link.href;
+          const normalizedHref = normalizeUrl(href);
+          
+          // Check both exact match and normalized match
+          const data = urlMap[href] || urlMap[normalizedHref];
+          
+          if (data) {
+            highlightedCount++;
             const isSuspicious = data.final_verdict === 'suspicious';
             const color = isSuspicious ? '#f59e0b' : '#ef4444';
             
-            console.log('Highlighting unsafe link:', link.href);
+            console.log('URL Safety: Highlighting link:', href, 'verdict:', data.final_verdict);
+            
+            // Apply highlighting styles
             link.style.border = '2px solid ' + color;
             link.style.borderRadius = '4px';
             link.style.backgroundColor = isSuspicious ? 'rgba(245, 158, 11, 0.1)' : 'rgba(239, 68, 68, 0.1)';
+            link.style.padding = '2px 4px';
             link.style.transition = 'all 0.2s ease';
+            link.style.boxShadow = '0 0 0 1px ' + color + '22';
             
             // Custom tooltip logic
             link.addEventListener('mouseenter', (e) => {
@@ -440,18 +487,20 @@ const urlSafety = {
                 Object.assign(tooltip.style, {
                     position: 'absolute', backgroundColor: '#1f2937', color: 'white',
                     padding: '10px', borderRadius: '8px', fontSize: '12px',
-                    zIndex: '10000', pointerEvents: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
+                    zIndex: '2147483647', pointerEvents: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
                     border: '1px solid ' + color, maxWidth: '280px', fontFamily: 'sans-serif'
                 });
                 
                 const threats = (data.safe_browsing && data.safe_browsing.threats) ? 
                     data.safe_browsing.threats.map(t => t.threatType).join(', ') : '';
+                const riskScore = data.risk_score !== undefined ? Math.round(data.risk_score) : 'N/A';
                 
                 tooltip.innerHTML = \`
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-                        <strong style="color: \${color}; font-size: 13px;">\${isSuspicious ? 'Suspicious' : 'Unsafe'} Link</strong>
+                        <strong style="color: \${color}; font-size: 13px;">\${isSuspicious ? '⚠️ Suspicious' : '🚨 Unsafe'} Link</strong>
                     </div>
-                    \${threats ? \`<div style="color: #fca5a5; margin-top: 4px;">🚨 \${threats}</div>\` : ''}
+                    <div style="font-size: 11px; color: #ccc; margin-bottom: 4px;">Risk Score: \${riskScore}/100</div>
+                    \${threats ? \`<div style="color: #fca5a5; margin-top: 4px; font-size: 11px;">Threats: \${threats}</div>\` : ''}
                 \`;
                 
                 document.body.appendChild(tooltip);
@@ -472,6 +521,8 @@ const urlSafety = {
             });
           }
         });
+        
+        console.log('URL Safety: Highlighted', highlightedCount, 'links');
       })();
     `
         webviews.callAsync(tabId, 'executeJavaScript', [script, false, null])

@@ -2,7 +2,7 @@ const webviews = require('webviews.js')
 const { marked } = require('marked');
 const Dexie = require('dexie');
 
-const API_URL = 'http://localhost:8000/api/chat'; // User provided: apibaseurl/chat
+const API_URL = 'http://192.168.2.235:8000/api/chat'; // User provided: apibaseurl/chat
 
 // Initialize Dexie
 const db = new Dexie('ChatDatabase');

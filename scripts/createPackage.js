@@ -5,7 +5,7 @@ const Arch = builder.Arch
 const { flipFuses, FuseVersion, FuseV1Options } = require('@electron/fuses')
 const path = require('path')
 
-function toPath (platform, arch) {
+function toPath(platform, arch) {
   if (platform == 'win32') {
     switch (arch) {
       case Arch.ia32:
@@ -99,7 +99,8 @@ module.exports = function (platform, extraOptions) {
     },
     win: {
       target: 'dir',
-      icon: 'icons/icon256.ico'
+      icon: 'icons/icon256.ico',
+      signAndEditExecutable: false
     },
     mac: {
       icon: 'icons/icon.icns',
