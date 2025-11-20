@@ -56,7 +56,6 @@ const reportFeedback = {
             this.submit();
         });
 
-        // Listen for IPC event from menu
         ipc.on('showReportFeedback', () => {
             this.show();
         });
@@ -112,7 +111,6 @@ const reportFeedback = {
         const description = document.getElementById('report-description').value.trim();
         const statusDiv = document.getElementById('report-status');
 
-        // Validation
         if (!url) {
             statusDiv.innerHTML = '<div class="status-error">No URL to report. Please navigate to a website first.</div>';
             return;
@@ -123,7 +121,6 @@ const reportFeedback = {
             return;
         }
 
-        // Show loading
         statusDiv.innerHTML = '<div class="status-loading">Submitting report...</div>';
         document.getElementById('report-submit').disabled = true;
 

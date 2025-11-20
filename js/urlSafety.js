@@ -1,9 +1,5 @@
-
-
-const API_BASE_URL = 'http://192.168.2.235:8000/api' // Placeholder
-// Cache key prefix
+const API_BASE_URL = 'http://192.168.2.235:8000/api'
 const CACHE_PREFIX = 'url_safety_cache_';
-
 
 
 const urlSafety = {
@@ -34,19 +30,18 @@ const urlSafety = {
             return data
         } catch (error) {
             console.error('Error checking URL safety:', error)
-            return null // Fail open or closed? Let's fail open for now to avoid blocking on errors
+            return null
         }
     },
 
     batchCheck: async function (urls) {
         const BATCH_SIZE = 100;
-        const uniqueUrls = [...new Set(urls)]; // Remove duplicates
+        const uniqueUrls = [...new Set(urls)];
         const cachedResults = [];
         const urlsToFetch = [];
 
         console.log('Batch checking', uniqueUrls.length, 'unique URLs');
 
-        // Check cache first
         uniqueUrls.forEach(url => {
             const cached = localStorage.getItem(CACHE_PREFIX + url);
             if (cached) {
@@ -84,13 +79,10 @@ const urlSafety = {
                     }
                     const data = await response.json();
 
-                    // The API returns {results: [...], total_checked: N, ...}
-                    // Extract the results array
                     const results = data.results || data;
 
                     console.log('Batch API returned', results.length, 'results');
 
-                    // Cache new results
                     results.forEach(result => {
                         if (result && result.url) {
                             try {
@@ -108,13 +100,12 @@ const urlSafety = {
                 }
             }));
 
-            // Combine cached and fresh results
             const allResults = [...cachedResults, ...apiResults.flat()];
             console.log('Total batch check results:', allResults.length);
             return allResults;
         } catch (error) {
             console.error('Error batch checking URLs:', error);
-            return cachedResults; // Return whatever we have from cache
+            return cachedResults;
         }
     },
 
@@ -124,7 +115,6 @@ const urlSafety = {
 
         let color, icon, titleText, bgColor;
         if (verdict === 'safe') {
-            // Should not happen for blockPage usually, but handling just in case
             color = '#22c55e';
             bgColor = '#1a2e1a';
             titleText = 'Safe Website';
@@ -137,7 +127,7 @@ const urlSafety = {
         } else {
             color = '#ef4444';
             bgColor = '#2e0000';
-            titleText = 'Phishing Detected'; // or Unsafe Website
+            titleText = 'Phishing Detected';
             icon = '🚨';
         }
 
@@ -212,7 +202,6 @@ const urlSafety = {
             const result = ${JSON.stringify(result)};
             const verdict = result.final_verdict || 'unknown';
             
-            // Theme Logic
             const themes = {
                 safe: { color: '#22c55e', bg: '#f0fdf4', border: '#bbf7d0', icon: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path><path d="M9 12l2 2 4-4"></path></svg>' },
                 suspicious: { color: '#f59e0b', bg: '#fffbeb', border: '#fde68a', icon: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>' },
@@ -220,22 +209,18 @@ const urlSafety = {
             };
             const theme = themes[verdict] || themes.unsafe;
             
-            // Risk Score Bar
             const score = Math.round(result.risk_score || 0);
             let barColor = '#22c55e';
             if (score > 30) barColor = '#f59e0b';
             if (score > 60) barColor = '#ef4444';
 
-            // Signals
             const signals = (result.suspicious_signals || []).map(s => 
                 \`<span style="background: #fee2e2; color: #991b1b; padding: 2px 6px; border-radius: 4px; font-size: 11px; margin-right: 4px; margin-bottom: 4px; display: inline-block; text-transform: uppercase;">\${s.replace(/_/g, ' ')}</span>\`
             ).join('');
 
-            // Enhanced Checks Construction
             let checksHtml = '';
             const ec = result.enhanced_checks || {};
             
-            // Helper for check rows
             const checkRow = (label, value, isSuspicious, reason, isError = false) => {
                 let valueColor = isSuspicious ? '#d97706' : '#166534';
                 let icon = isSuspicious ? '⚠️' : '✓';
@@ -252,14 +237,11 @@ const urlSafety = {
             \`;
             };
 
-            // ML Detection Row
-            // Logic: If score > 0.9, do not show green tick (it's likely unsafe/suspicious)
             const mlScore = result.ml_score || 0;
             const mlLabel = result.ml_label || 'Unknown';
             const isMlSuspicious = mlScore > 0.9 || mlLabel === 'unsafe' || mlLabel === 'phishing';
             checksHtml += checkRow('ML Detection', \`\${mlScore.toFixed(3)} (\${mlLabel})\`, isMlSuspicious, null);
 
-            // Domain Age
             if (ec.domain_age) {
                 const age = ec.domain_age.age_days ? \`\${ec.domain_age.age_days} days\` : 'Unknown';
                 const registrar = ec.domain_age.registrar ? \` • \${ec.domain_age.registrar}\` : '';
@@ -267,7 +249,6 @@ const urlSafety = {
                 checksHtml += checkRow('Domain Age', age + registrar, ec.domain_age.suspicious, ec.domain_age.reason, isError);
             }
 
-            // SSL Certificate
             if (ec.ssl_certificate) {
                 const ssl = ec.ssl_certificate;
                 let sslDetails = 'Invalid';
@@ -279,7 +260,6 @@ const urlSafety = {
                 checksHtml += checkRow('SSL', sslDetails, ssl.suspicious, ssl.reason);
             }
 
-            // DNS Records
             if (ec.dns_records) {
                 const dns = ec.dns_records;
                 const records = [];
@@ -293,56 +273,7 @@ const urlSafety = {
                 checksHtml += checkRow('DNS Records', dnsStatus, dns.suspicious, dns.reason);
             }
 
-            // Typosquatting
             if (ec.typosquatting && ec.typosquatting.is_typosquatting) {
-                 let typoDetails = \`Similar to \${ec.typosquatting.target_brand}\`;
-                 if (ec.typosquatting.similarity) typoDetails += \` (\${(ec.typosquatting.similarity * 100).toFixed(0)}%)\`;
-                 if (ec.typosquatting.has_unicode_chars) typoDetails += ' • Unicode chars';
-                 if (ec.typosquatting.has_brand_in_subdomain) typoDetails += ' • Brand in subdomain';
-                 
-                 checksHtml += checkRow('Typosquatting', typoDetails, true, null);
-            } else if (ec.typosquatting && !ec.typosquatting.suspicious) {
-                 // Optional: Show clean typosquatting check if desired, or skip to save space. 
-                 // The React example shows "No typosquatting detected" in green.
-                 // checksHtml += checkRow('Typosquatting', 'None detected', false, null);
-            }
-
-            // URL Features
-            if (ec.enhanced_features) {
-                const ef = ec.enhanced_features;
-                if (ef.is_url_shortened) checksHtml += checkRow('URL Shortener', 'Detected', true, null);
-                if (ef.has_ip_address) checksHtml += checkRow('Host Type', 'IP Address', true, null);
-                if (ef.has_at_symbol) checksHtml += checkRow('Obfuscation', '@ Symbol Detected', true, null);
-                if (ef.subdomain_count > 2) checksHtml += checkRow('Subdomains', \`\${ef.subdomain_count} detected\`, true, null);
-                checksHtml += checkRow('Entropy', (ef.domain_entropy || 0).toFixed(2), false, null);
-            }
-            
-            // Reputation Details
-            // Google Safe Browsing
-            if (result.safe_browsing) {
-                const sb = result.safe_browsing;
-                const isSbUnsafe = !sb.safe && sb.threats && sb.threats.length > 0;
-                const sbValue = isSbUnsafe ? \`🚫 \${sb.threats.map(t => t.threatType).join(", ")}\` : 'Clean';
-                checksHtml += checkRow('Google Safe Browsing', sbValue, isSbUnsafe, null);
-            }
-
-            if (ec.reputation) {
-                const rep = ec.reputation;
-                if (rep.phishtank) checksHtml += checkRow('PhishTank', rep.phishtank.in_database ? 'Listed' : 'Clean', rep.phishtank.in_database, null);
-                if (rep.urlhaus) checksHtml += checkRow('URLhaus', rep.urlhaus.in_database ? 'Listed' : 'Clean', rep.urlhaus.in_database, null);
-                if (rep.virustotal) {
-                     const vtValue = rep.virustotal.detection_ratio || rep.virustotal; // Handle string or object if structure varies
-                     const isVtSuspicious = typeof vtValue === 'string' && parseInt(vtValue.split('/')[0]) > 0;
-                     checksHtml += checkRow('VirusTotal', vtValue, isVtSuspicious, null);
-                }
-            }
-            
-            // Reputation Alert (Top Level)
-            let repHtml = '';
-            if (ec.reputation && ec.reputation.flagged_by_services && ec.reputation.flagged_by_services.length > 0) {
-                repHtml = \`<div style="background: #fee2e2; color: #991b1b; padding: 8px; border-radius: 6px; font-size: 12px; font-weight: bold; margin-bottom: 8px;">
-                    ⚠️ FLAGGED BY: \${ec.reputation.flagged_by_services.join(', ')}
-                </div>\`;
             }
 
             const notif = document.createElement('div');
@@ -410,7 +341,6 @@ const urlSafety = {
                 startTimer();
             });
 
-            // Initial timer
             startTimer();
         })();
         `
@@ -418,8 +348,6 @@ const urlSafety = {
     },
 
     highlightRiskyUrls: function (tabId, results, webviews) {
-        // results is expected to be the array from the batch check response
-        // Filter for unsafe URLs
         const unsafeUrls = results.filter(r => r.final_verdict === 'unsafe' || r.final_verdict === 'suspicious');
 
         console.log('highlightRiskyUrls called with', results.length, 'results,', unsafeUrls.length, 'unsafe/suspicious');
@@ -431,7 +359,6 @@ const urlSafety = {
         const unsafeData = ${JSON.stringify(unsafeUrls)};
         const urlMap = {};
         
-        // Normalize URL by removing trailing slash and converting to lowercase
         const normalizeUrl = (url) => {
             try {
                 let normalized = url.trim().toLowerCase();
@@ -444,7 +371,6 @@ const urlSafety = {
             }
         };
         
-        // Build map with both original and normalized URLs
         unsafeData.forEach(item => {
             urlMap[item.url] = item;
             urlMap[normalizeUrl(item.url)] = item;
@@ -462,7 +388,6 @@ const urlSafety = {
           const href = link.href;
           const normalizedHref = normalizeUrl(href);
           
-          // Check both exact match and normalized match
           const data = urlMap[href] || urlMap[normalizedHref];
           
           if (data) {
@@ -472,7 +397,6 @@ const urlSafety = {
             
             console.log('URL Safety: Highlighting link:', href, 'verdict:', data.final_verdict);
             
-            // Apply highlighting styles
             link.style.border = '2px solid ' + color;
             link.style.borderRadius = '4px';
             link.style.backgroundColor = isSuspicious ? 'rgba(245, 158, 11, 0.1)' : 'rgba(239, 68, 68, 0.1)';
@@ -480,7 +404,6 @@ const urlSafety = {
             link.style.transition = 'all 0.2s ease';
             link.style.boxShadow = '0 0 0 1px ' + color + '22';
             
-            // Custom tooltip logic
             link.addEventListener('mouseenter', (e) => {
                 const tooltip = document.createElement('div');
                 tooltip.id = 'safety-tooltip-' + Math.random().toString(36).substr(2, 9);

@@ -144,13 +144,6 @@ module.exports = {
     })
 
     ipc.on('showReportFeedback', function () {
-      // Handled by reportFeedback.js, but we need to ensure the event propagates or is handled there.
-      // Actually, reportFeedback.js listens to ipcRenderer directly, so this might be redundant if we don't use menuRenderer as a proxy.
-      // However, menuRenderer is where other menu IPCs are handled.
-      // But reportFeedback.js is initialized in default.js and listens to ipc directly.
-      // So we don't strictly need code here, but let's keep it clean.
-      // Wait, reportFeedback.js listens to 'showReportFeedback'.
-      // So we don't need to add anything here if reportFeedback.js is loaded.
     })
   }
 }

@@ -2,17 +2,13 @@ const webviews = require('webviews.js')
 const { marked } = require('marked');
 const Dexie = require('dexie');
 
-const API_URL = 'http://192.168.2.235:8000/api/chat'; // User provided: apibaseurl/chat
+const API_URL = 'http://192.168.2.235:8000/api/chat';
 
-// Initialize Dexie
 const db = new Dexie('ChatDatabase');
-// Update schema for version 2 to include conversations
 db.version(2).stores({
     conversations: '++id, title, timestamp',
     messages: '++id, conversationId, role, content, timestamp'
 }).upgrade(tx => {
-    // Optional: Migrate old messages to a default conversation if needed.
-    // For now, we'll leave them orphaned or clear them.
 });
 
 const chatSidebar = {
@@ -69,7 +65,6 @@ const chatSidebar = {
             }
         });
 
-        // Load last conversation or start new
         await this.loadLastConversation();
     },
 
@@ -98,12 +93,10 @@ const chatSidebar = {
         const messagesArea = document.getElementById('chat-messages');
 
         if (historyList.hidden) {
-            // Show history
             await this.renderHistoryList();
             historyList.hidden = false;
             messagesArea.hidden = true;
         } else {
-            // Hide history
             historyList.hidden = true;
             messagesArea.hidden = false;
         }
@@ -154,7 +147,6 @@ const chatSidebar = {
         const message = input.value.trim();
         if (!message) return;
 
-        // Ensure conversation exists
         if (!this.currentConversationId) {
             const title = message.slice(0, 30) + (message.length > 30 ? '...' : '');
             this.currentConversationId = await db.conversations.add({
@@ -163,14 +155,12 @@ const chatSidebar = {
             });
         }
 
-        // Get history BEFORE adding the new message (for API context)
         const history = this.getHistory();
 
         this.addMessage(message, 'user');
         await this.saveMessageToDB('user', message);
         input.value = '';
 
-        // Add loading indicator
         const loadingId = this.addMessage('Typing...', 'assistant');
 
         try {
@@ -187,14 +177,12 @@ const chatSidebar = {
 
             const data = await response.json();
 
-            // Remove loading indicator
             const loadingMsg = document.getElementById(loadingId);
             if (loadingMsg) loadingMsg.remove();
 
             this.addMessage(data.response, 'assistant');
             await this.saveMessageToDB('assistant', data.response);
 
-            // Update conversation timestamp
             await db.conversations.update(this.currentConversationId, { timestamp: Date.now() });
 
         } catch (error) {
@@ -250,7 +238,6 @@ const chatSidebar = {
         }
     },
 
-    // Removed loadHistoryFromDB as it's replaced by loadConversation
 };
 
 module.exports = chatSidebar;

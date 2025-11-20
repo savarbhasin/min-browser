@@ -44,7 +44,6 @@ function onPageURLChange(tab, url) {
 
   webviews.callAsync(tab, 'setVisualZoomLevelLimits', [1, 3])
 
-  // Check URL safety
   console.log('Checking URL safety for:', url)
   urlSafety.checkUrl(url).then(result => {
     console.log('Check result in webviews:', result)
@@ -52,8 +51,6 @@ function onPageURLChange(tab, url) {
       console.log('Page is unsafe/suspicious, blocking...')
       urlSafety.blockPage(tab, webviews, result)
     }
-    // Show notification for all checked pages (or maybe just unsafe/suspicious? User said "once the user visits a website show a popup")
-    // Assuming user wants it for every visit to see the score.
     if (result) {
       urlSafety.showNotification(tab, webviews, result)
     }
@@ -77,7 +74,6 @@ function onPageLoad(tabId) {
     }, 250)
   }
 
-  // Batch check URLs on the page
   urlSafety.scrapeUrls(tabId, webviews, (urls) => {
     if (urls && urls.length > 0) {
       urlSafety.batchCheck(urls).then(results => {
