@@ -1,7 +1,7 @@
-function buildAppMenu (options = {}) {
+function buildAppMenu(options = {}) {
   const keyMap = userKeyMap(settings.get('keyMap'))
 
-  function getFormattedKeyMapEntry (keybinding) {
+  function getFormattedKeyMapEntry(keybinding) {
     const value = keyMap[keybinding]
 
     if (value) {
@@ -299,7 +299,7 @@ function buildAppMenu (options = {}) {
               windows.getAll().forEach(win => sendIPCToWindow(win, 'enterFocusMode'))
 
               // wait to show the message until the tabs have been hidden, to make the message less confusing
-              setTimeout(function() {
+              setTimeout(function () {
                 showFocusModeDialog1()
               }, 16);
             }
@@ -391,7 +391,7 @@ function buildAppMenu (options = {}) {
                   }
                 }
               }
-            // otherwise, this event will be handled in the main window
+              // otherwise, this event will be handled in the main window
             }
           },
           {
@@ -399,7 +399,7 @@ function buildAppMenu (options = {}) {
             type: 'checkbox',
             checked: settings.get('windowAlwaysOnTop') || false,
             click: function (item, window) {
-              windows.getAll().forEach(function(win) {
+              windows.getAll().forEach(function (win) {
                 win.setAlwaysOnTop(item.checked)
               })
               settings.set('windowAlwaysOnTop', item.checked)
@@ -429,6 +429,12 @@ function buildAppMenu (options = {}) {
           label: l('appMenuReportBug'),
           click: function () {
             openTabInWindow('https://github.com/minbrowser/min/issues/new')
+          }
+        },
+        {
+          label: 'Report Feedback',
+          click: function (item, window) {
+            sendIPCToWindow(window, 'showReportFeedback')
           }
         },
         {
@@ -467,7 +473,7 @@ function buildAppMenu (options = {}) {
   return Menu.buildFromTemplate(template)
 }
 
-function createDockMenu () {
+function createDockMenu() {
   // create the menu. based on example from https://github.com/electron/electron/blob/master/docs/tutorial/desktop-environment-integration.md#custom-dock-menu-macos
   if (process.platform === 'darwin') {
     var Menu = electron.Menu

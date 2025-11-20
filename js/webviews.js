@@ -1,5 +1,6 @@
 var urlParser = require('util/urlParser.js')
 var settings = require('util/settings/settings.js')
+var urlSafety = require('urlSafety.js')
 
 /* implements selecting webviews, switching between them, and creating new ones. */
 
@@ -9,7 +10,7 @@ var hasSeparateTitlebar = settings.get('useSeparateTitlebar')
 var windowIsMaximized = false // affects navbar height on Windows
 var windowIsFullscreen = false
 
-function captureCurrentTab (options) {
+function captureCurrentTab(options) {
   if (tabs.get(tabs.getSelected()).private) {
     // don't capture placeholders for private tabs
     return
@@ -28,7 +29,7 @@ function captureCurrentTab (options) {
 }
 
 // called whenever a new page starts loading, or an in-page navigation occurs
-function onPageURLChange (tab, url) {
+function onPageURLChange(tab, url) {
   if (url.indexOf('https://') === 0 || url.indexOf('about:') === 0 || url.indexOf('chrome:') === 0 || url.indexOf('file://') === 0 || url.indexOf('min://') === 0) {
     tabs.update(tab, {
       secure: true,
@@ -42,17 +43,32 @@ function onPageURLChange (tab, url) {
   }
 
   webviews.callAsync(tab, 'setVisualZoomLevelLimits', [1, 3])
+
+  // Check URL safety
+  console.log('Checking URL safety for:', url)
+  urlSafety.checkUrl(url).then(result => {
+    console.log('Check result in webviews:', result)
+    if (result && (result.final_verdict === 'unsafe' || result.final_verdict === 'suspicious')) {
+      console.log('Page is unsafe/suspicious, blocking...')
+      urlSafety.blockPage(tab, webviews, result)
+    }
+    // Show notification for all checked pages (or maybe just unsafe/suspicious? User said "once the user visits a website show a popup")
+    // Assuming user wants it for every visit to see the score.
+    if (result) {
+      urlSafety.showNotification(tab, webviews, result)
+    }
+  })
 }
 
 // called whenever a navigation finishes
-function onNavigate (tabId, url, isInPlace, isMainFrame, frameProcessId, frameRoutingId) {
+function onNavigate(tabId, url, isInPlace, isMainFrame, frameProcessId, frameRoutingId) {
   if (isMainFrame) {
     onPageURLChange(tabId, url)
   }
 }
 
 // called whenever the page finishes loading
-function onPageLoad (tabId) {
+function onPageLoad(tabId) {
   // capture a preview image if a new page has been loaded
   if (tabId === tabs.getSelected()) {
     setTimeout(function () {
@@ -60,9 +76,20 @@ function onPageLoad (tabId) {
       captureCurrentTab()
     }, 250)
   }
+
+  // Batch check URLs on the page
+  urlSafety.scrapeUrls(tabId, webviews, (urls) => {
+    if (urls && urls.length > 0) {
+      urlSafety.batchCheck(urls).then(results => {
+        if (results && Array.isArray(results)) {
+          urlSafety.highlightRiskyUrls(tabId, results, webviews)
+        }
+      })
+    }
+  })
 }
 
-function scrollOnLoad (tabId, scrollPosition) {
+function scrollOnLoad(tabId, scrollPosition) {
   const listener = function (eTabId) {
     if (eTabId === tabId) {
       // the scrollable content may not be available until some time after the load event, so attempt scrolling several times
@@ -90,7 +117,7 @@ function scrollOnLoad (tabId, scrollPosition) {
   webviews.bindEvent('did-finish-load', listener)
 }
 
-function setAudioMutedOnCreate (tabId, muted) {
+function setAudioMutedOnCreate(tabId, muted) {
   const listener = function () {
     webviews.callAsync(tabId, 'setAudioMuted', muted)
     webviews.unbindEvent('did-navigate', listener)
@@ -108,7 +135,7 @@ const webviews = {
   },
   events: [],
   IPCEvents: [],
-  hasViewForTab: function(tabId) {
+  hasViewForTab: function (tabId) {
     return tabId && tasks.getTaskContainingTab(tabId) && tasks.getTaskContainingTab(tabId).tabs.get(tabId).hasWebContents
   },
   bindEvent: function (event, fn) {

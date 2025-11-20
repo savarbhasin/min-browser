@@ -248,7 +248,7 @@ const defaultKeybindings = {
       browserUI.addTab() // create a new, blank tab
     })
 
-    keybindings.defineShortcut('closeWindow', function() {
+    keybindings.defineShortcut('closeWindow', function () {
       ipc.invoke('close')
     })
 
@@ -268,6 +268,11 @@ const defaultKeybindings = {
 
     keybindings.defineShortcut('showHistory', function () {
       tabEditor.show(tabs.getSelected(), '!history ')
+    })
+
+    keybindings.defineShortcut({ keys: 'mod+b' }, function () {
+      const chatSidebar = require('chatSidebar.js')
+      chatSidebar.toggle()
     })
 
     keybindings.defineShortcut('copyPageURL', function () {
